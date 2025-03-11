@@ -1,0 +1,174 @@
+# -*- coding: utf-8 -*-
+# @Author  : Naihe
+# @File    : baimiaoocr.py
+import hashlib
+import re
+import time
+from base64 import b64encode
+from pathlib import Path
+import requests
+
+
+class baimiaoocr:
+    def __init__(self, api_key, api_secret):
+        self.api_key = api_key
+        self.api_secret = api_secret
+        self.headers = {
+            "Host": "web.baimiaoapp.com",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:108.0) Gecko/20100101 Firefox/108.0",
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2",
+            "Content-Type": "application/json;charset=utf-8",
+            "Origin": "https://web.baimiaoapp.com",
+            "Connection": "keep-alive",
+            "Referer": "https://web.baimiaoapp.com/",
+            "X-AUTH-UUID": "xxx",
+            "X-AUTH-TOKEN": "xxxx"
+        }
+
+    def login(self):
+        url = "https://web.baimiaoapp.com/api/user/login"
+        data = {"username": self.api_key, "password": self.api_secret, "type": "mobile"}
+        with requests.post(url=url, json=data, headers=self.headers) as res:
+            return res.json()
+
+    def single(self):
+        url = "https://web.baimiaoapp.com/api/perm/single"
+        data = {"mode": "single"}
+        with requests.post(url=url, json=data, headers=self.headers) as res:
+            return res.json()
+
+    def open_img(self, uri):
+        """
+        打开图片
+        """
+        path = Path(uri)
+        if path.is_file():  # 本地图片
+            with open(path, "rb") as f:
+                img = f.read()
+                img_base64 = b64encode(img).decode("utf-8")
+                img_hash = hashlib.md5(img).hexdigest()
+                return img_base64, img_hash
+        elif re.match(r"http.?://.*", uri): # 网络图片
+            with requests.get(uri) as res:
+                img = res.content
+                img_hash = hashlib.md5(img).hexdigest()
+                img_base64 = b64encode(img).decode("utf-8")
+                return img_base64, img_hash
+        else:
+            print(uri, "不是文件路径或者url")
+
+    def img_to_str(self, img_path):
+        """
+        图片转文字
+        """
+        img_base64, img_hash = self.open_img(img_path)
+
+        para = self.single()
+        token = para["data"]["token"]
+
+        url = "https://web.baimiaoapp.com/api/ocr/image/xunfei"
+        data = {
+            "batchId": "",
+            "total": 1,
+            "token": token,
+            "hash": img_hash,
+            "name": f"{time.time()}.png",
+            "size": len(img_base64),
+            "dataUrl": f"data:image/jpeg;base64,{img_base64}",
+            "result": {},
+            "status": "processing",
+            "isSuccess": False
+        }
+        with requests.post(url=url, json=data, headers=self.headers) as res:
+            data = res.json()
+            jobStatusId = data["data"]["jobStatusId"]
+
+        url = f"https://web.baimiaoapp.com/api/ocr/image/xunfei/status?jobStatusId={jobStatusId}"
+        with requests.get(url=url, headers=self.headers) as res:
+            data = res.json()
+            lines = data["data"]["ydResp"]["data"]["lines"]
+            for i in lines:
+            return data
+
+    def img_to_latex(self, img_path):
+        """
+        图片转数学公式
+        """
+        img_base64, img_hash = self.open_img(img_path)
+
+        para = self.single()
+        token = para["data"]["token"]
+
+        url = "https://web.baimiaoapp.com/api/ocr/latex/xunfei"
+        data = {
+            "batchId": "",
+            "total": 1,
+            "token": token,
+            "hash": img_hash,
+            "name": f"{time.time()}.png",
+            "size": len(img_base64),
+            "dataUrl": f"data:image/jpeg;base64,{img_base64}",
+            "result": {},
+            "status": "processing",
+            "isSuccess": False
+        }
+
+        with requests.post(url=url, json=data, headers=self.headers) as res:
+            data = res.json()
+            jobStatusId = data["data"]["jobStatusId"]
+
+        url = f"https://web.baimiaoapp.com/api/ocr/latex/xunfei/status?jobStatusId={jobStatusId}"
+        with requests.get(url=url, headers=self.headers) as res:
+            data = res.json()
+            datas = data["data"]["ydResp"]["data"]
+            return data
+
+    def img_to_table(self, img_path):
+        """
+        图片转表格
+        """
+        img_base64 = self.open_img(img_path)
+
+        para = self.single()
+        token = para["data"]["token"]
+
+        url = "https://web.baimiaoapp.com/api/ocr/table/tencent"
+        data = {
+            "token": token,
+            "hash": "0a231fdb702dd9ebf94835fa8c13554750108b5e",
+            "name": "屏幕截图_20221129_110747.png",
+            "size": 112895,
+            "dataUrl": "base64 encode",
+            "result": {},
+            "status": "processing",
+            "isSuccess": False}
+
+        with requests.post(url=url, json=data, headers=self.headers) as res:
+            data = res.json()
+            hash = data["data"]["hash"]
+            url = data["data"]["ydResp"]["Result"]["url"]
+            base64 = data["data"]["ydResp"]["Result"]["base64"]
+            return data
+
+    def pdf_to_str(self, pdf_path):
+        """
+        pdf转文字
+        """
+        return self.img_to_str(pdf_path)
+
+
+def main():
+    api_key = ""
+    api_secret = ""
+    bm = baimiaoocr(api_key, api_secret)
+    bm.login()
+    uri = "https://img-blog.csdnimg.cn/ac14115d64dc43c99619a1997cd8d822.png"
+    print(bm.single())
+    print(bm.img_to_str(uri))
+    print(bm.img_to_latex(uri))
+    print(bm.img_to_table(uri))
+
+
+if __name__ == '__main__':
+    main()
